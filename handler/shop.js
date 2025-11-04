@@ -129,7 +129,11 @@ async function backToGateOrMain(ctx) {
   const allowed = ent.isAllowed(ctx.from.id);
   if (allowed) {
     const menu = mainMenu(ctx);
-    await ctx.reply(menu.text, { reply_markup: menu.reply_markup, parse_mode: menu.parse_mode });
+    await ctx.reply(menu.text, {
+      reply_markup: menu.reply_markup,
+      parse_mode: menu.parse_mode,
+      message_effect_id: '5104841245755180586' // efek api saat kembali ke menu utama
+    });
   } else {
     await ctx.reply('Pilih salah satu:', { reply_markup: gateKeyboard() });
   }
@@ -210,13 +214,17 @@ module.exports = (bot) => {
         await ctx.api.sendMessage(
           targetId,
           approvedUserText(days),
-          { parse_mode: 'Markdown', message_effect_id: '5046509860389126442' }
+          { parse_mode: 'Markdown', message_effect_id: '5104841245755180586' } // efek api
         );
       } catch {}
       try {
         const { mainMenu } = require('../utils/menu');
         const menu = mainMenu({ from: { id: targetId, first_name: 'User' } });
-        await ctx.api.sendMessage(targetId, menu.text, { parse_mode: menu.parse_mode, reply_markup: menu.reply_markup });
+        await ctx.api.sendMessage(
+          targetId,
+          menu.text,
+          { parse_mode: menu.parse_mode, reply_markup: menu.reply_markup, message_effect_id: '5104841245755180586' } // efek api
+        );
       } catch {}
       try { await ctx.answerCallbackQuery({ text: `✅ Berhasil verifikasi ${targetId}` }); } catch {}
     } else {
