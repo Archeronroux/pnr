@@ -67,7 +67,11 @@ module.exports = (bot) => {
     }
 
     const menu = mainMenu(ctx);
-    await ctx.reply(menu.text, { reply_markup: menu.reply_markup, parse_mode: menu.parse_mode });
+    await ctx.reply(menu.text, {
+      reply_markup: menu.reply_markup,
+      parse_mode: menu.parse_mode,
+      message_effect_id: '5104841245755180586' // efek api saat kembali ke menu utama
+    });
   });
 
   // Settings
