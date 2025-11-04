@@ -34,11 +34,11 @@ module.exports = {
   },
   messages: {
     welcomeNotAuthed: (name) =>
-      `*👋🏻 Hai!, ${name}*\n\nSelamat datang di Ubot by @JaeHype!\nBot ini bisa broadcast otomatis!\n\n*Owner : @JaeHype*\n*Channel: @PanoramaaStoree*`,
+      `*👋🏻 Hai!, ${name}*\n\nSelamat datang di Ubot by @Stuaart!\nBot ini bisa broadcast otomatis!\n\n*Owner : @Stuaart*\n*Channel: @PanoramaaStoree*`,
     welcomeAuthed: (name, status) =>
 `*👋🏻 Hai!, ${name}*
 
-Selamat datang kembali di Ubot by @JaeHype!
+Selamat datang kembali di Ubot by @Stuaart!
 
 ---
 *Status Akun:*
@@ -47,7 +47,7 @@ Selamat datang kembali di Ubot by @JaeHype!
 
 Ads : [Join Channel utama](https://t.me/PanoramaaStoree)`,
     needLogin: '❌ Login dulu',
-    askPhone: '📱 Kirim Nomor Telepon Anda (format: +628xxx):',
+    askPhone: '📱 Kirim Nomor Telepon Anda (format: +628xxx) atau tekan "📂 Kirim Nomor 📂" untuk mengirim kontak pribadi Anda.',
     invalidPhone: '❌ Format salah. Contoh: +6281234567890',
     otpInfo: `*Silakan kirim kode OTP yang masuk.*\nPisahkan angka dengan spasi (contoh: 2 4 5 6 3)`,
     passwordAsk: 'Kirim Password 2FA Anda',
