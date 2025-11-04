@@ -11,7 +11,7 @@ function gateKeyboard() {
     .resized();
 }
 
-const GATE_MESSAGE = `*Selamat datang di bot auto broadcast by @Jaehype*
+const GATE_MESSAGE = `*Selamat datang di bot auto broadcast by @Stuaart*
 
 Silakan gunakan:
 • 🎁 Uji coba 🎁
