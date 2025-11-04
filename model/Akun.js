@@ -127,16 +127,20 @@ class Akun {
     ];
   }
 
-  async _sendWelcomeWithEffects(api, text) {
+  async _sendWelcomeWithEffects(api, text, opts = {}) {
     const ids = this._resolveEffectIds();
+    const baseOpts = {
+      parse_mode: opts.parse_mode || 'Markdown',
+      reply_markup: opts.reply_markup
+    };
     for (const id of ids) {
       try {
-        await api.sendMessage(this.uid, text, { parse_mode: 'Markdown', message_effect_id: id });
+        await api.sendMessage(this.uid, text, { ...baseOpts, message_effect_id: id });
         return true;
       } catch (e) { log(`[WELCOME_EFFECT_FAIL id=${id}] ${e.message}`); }
     }
     try {
-      await api.sendMessage(this.uid, text, { parse_mode: 'Markdown' });
+      await api.sendMessage(this.uid, text, baseOpts);
       return true;
     } catch (e) {
       console.error('[WELCOME_SEND_FAIL]', e.message);
@@ -198,12 +202,11 @@ class Akun {
           console.error('[Akun.login] saveState error:', e.message);
         }
 
+        // Kirim HANYA satu pesan utama dengan efek + keyboard menu
         const welcome = STR.messages.welcomeAuthed(this.name, 'Mati');
-        await this._sendWelcomeWithEffects(ctx.api, welcome);
-
         const { mainMenu } = require('../utils/menu');
         const menu = mainMenu({ from: { id: this.uid, first_name: this.name } });
-        await ctx.api.sendMessage(this.uid, menu.text, {
+        await this._sendWelcomeWithEffects(ctx.api, welcome, {
           reply_markup: menu.reply_markup,
           parse_mode: menu.parse_mode
         });
@@ -352,6 +355,7 @@ class Akun {
   }
 
   async forwardOrCopy(msg, targetPeer, botApi, tag) {
+    // HTML direct mode
     if (msg && typeof msg === 'object' && msg.html && typeof msg.text === 'string') {
       try {
         await this.client.sendMessage(targetPeer, { message: msg.text, parseMode: 'html' });
@@ -361,26 +365,31 @@ class Akun {
       }
       return;
     }
+    // Text + entities
     if (msg && typeof msg === 'object' && typeof msg.text === 'string') {
       try { await this._sendEntities(targetPeer, msg.text, Array.isArray(msg.entities)?msg.entities:[], tag); this.stats.sent++; }
       catch(e){ this.stats.failed++; log(`[FATAL_SEND] tag=${tag} e=${e.message}`); }
       return;
     }
+    // Plain string
     if (typeof msg === 'string') {
       try { await this.client.sendMessage(targetPeer,{message:msg}); this.stats.sent++; }
       catch(e){ this.stats.failed++; log(`[PLAIN_FAIL] ${e.message}`); }
       return;
     }
-    if (msg && typeof msg === 'object' && typeof msg.mid==='number' && msg.src!==undefined){
+    // Forward from source (src+mid)
+    if (msg && typeof msg === 'object' && msg.mid !== undefined && msg.src !== undefined){
       try{
         const srcEnt=await this.getSourceEntity(msg.src);
         if(!srcEnt) throw new Error('SOURCE_NOT_JOINED');
-        await this.client.forwardMessages(targetPeer,{fromPeer:srcEnt,messages:[msg.mid]});
+        const midNum = Number(msg.mid);
+        await this.client.forwardMessages(targetPeer,{fromPeer:srcEnt,messages:[midNum]});
         this.stats.sent++;
       }catch(e){
         log(`[FORWARD_FAIL] ${e.message} -> fallback copy`);
         try{
-          await this._sendEntities(targetPeer, msg.text||'[Forward]', Array.isArray(msg.entities)?msg.entities:[], tag+'_FALLBACK');
+          const text = typeof msg.text === 'string' ? msg.text : '[Forward]';
+          await this._sendEntities(targetPeer, text, Array.isArray(msg.entities)?msg.entities:[], tag+'_FALLBACK');
           this.stats.sent++;
         }catch(e2){
           this.stats.failed++; log(`[FORWARD_FALLBACK_FAIL] ${e2.message}`);
@@ -388,6 +397,7 @@ class Akun {
       }
       return;
     }
+    // Legacy fallback
     try{
       await this.client.sendMessage(targetPeer,{message:msg?.preview||'[Pesan]'});
       this.stats.sent++;
