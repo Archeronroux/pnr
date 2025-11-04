@@ -67,7 +67,7 @@ function approvedUserText(days) {
   return (
 `*Selamat! aktivasi anda berhasil* ✅
 
-nikmati full acces ke Userbot Premium selama ${days} hari. fitur akan selalu dikembangkan dan jika terjadi eror mohon hubungi @Jaehype.
+nikmati full acces ke Userbot Premium selama ${days} hari. fitur akan selalu dikembangkan dan jika terjadi eror mohon hubungi @Stuaart.
 
 *Terimakasih sudah berlangganan, Have a nice day!* 🔥`
   );
