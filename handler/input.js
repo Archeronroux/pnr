@@ -87,7 +87,7 @@ module.exports = async (ctx) => {
 
       try {
         acc.login(ctx, phone);
-        // HAPUS pesan OTP info sesuai permintaan (tidak kirim apapun di sini)
+        // Tidak kirim OTP info extra
       } catch (e) {
         console.error('[input] acc.login error:', e && e.stack ? e.stack : e);
         await ctx.reply('❌ Gagal memulai login: ' + (e.message || String(e)));
@@ -119,8 +119,8 @@ module.exports = async (ctx) => {
         if (forwardMid !== undefined && forwardMid !== null && (forwardFromChat || forwardFromUser)) {
           const srcId = forwardFromChat ? forwardFromChat.id : (forwardFromUser ? forwardFromUser.id : null);
           if (srcId !== null && srcId !== undefined) {
-            // Simpan forward-only agar disiarkan sebagai forward (bukan teks biasa)
-            a.msgs.push({ src: String(srcId), mid: String(forwardMid) });
+            // Simpan forward dengan cadangan konten untuk fallback jika forward gagal
+            a.msgs.push({ src: String(srcId), mid: String(forwardMid), text: raw, entities });
             await ctx.reply(STR.messages.messageForwardSaved);
           } else {
             a.msgs.push({ text: raw, entities });
@@ -139,7 +139,11 @@ module.exports = async (ctx) => {
         await ctx.reply('❌ Gagal menyimpan: ' + (e.message || e));
       }
       const menu = mainMenu(ctx);
-      await ctx.reply(menu.text, { reply_markup: menu.reply_markup, parse_mode: menu.parse_mode });
+      await ctx.reply(menu.text, {
+        reply_markup: menu.reply_markup,
+        parse_mode: menu.parse_mode,
+        message_effect_id: '5104841245755180586' // efek api saat kembali ke menu utama
+      });
     },
 
     addtgt: async () => {
@@ -230,8 +234,8 @@ module.exports = async (ctx) => {
           else if (m && typeof m === 'object') {
             if (m.html) a.msgs.push({ text: m.text, entities: [], html: true });
             else if (m.src !== undefined && m.mid !== undefined) {
-              // preserve forward
-              a.msgs.push({ src: String(m.src), mid: String(m.mid) });
+              // preserve forward + fallback content jika ada
+              a.msgs.push({ src: String(m.src), mid: String(m.mid), text: m.text, entities: Array.isArray(m.entities)?m.entities:[] });
             } else if (typeof m.text === 'string')
               a.msgs.push({ text: m.text, entities: Array.isArray(m.entities)?m.entities:[] });
           }
