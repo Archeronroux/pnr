@@ -64,7 +64,6 @@ class Akun {
     this.lastAllTick = 0;
   }
 
-  // ---- Helper logging internal ----
   _log(...a) { if (DEBUG) console.log('[AKUN]', this.uid, ...a); }
 
   _lazyPersist() {
@@ -120,8 +119,8 @@ class Akun {
     if (multi) return multi.split(',').map(s => s.trim()).filter(Boolean);
     if (single) return [single];
     return [
-      '5104841245755180586', // api
-      '5046509860389126442', // api alt
+      '5104841245755180586',
+      '5046509860389126442',
       '5044134455711629726',
       '5064383411453188150'
     ];
@@ -202,7 +201,6 @@ class Akun {
           console.error('[Akun.login] saveState error:', e.message);
         }
 
-        // Kirim HANYA satu pesan utama dengan efek + keyboard menu
         const welcome = STR.messages.welcomeAuthed(this.name, 'Mati');
         const { mainMenu } = require('../utils/menu');
         const menu = mainMenu({ from: { id: this.uid, first_name: this.name } });
@@ -302,7 +300,7 @@ class Akun {
       const n = BigInt(botId);
       if (n >= 0n) return n;
       const abs = -n;
-      if (String(abs).startsWith('100')) return abs - 1000000000000n; // -100xxxxxxxxxx -> xxxxxxxxxx
+      if (String(abs).startsWith('100')) return abs - 1000000000000n;
       return abs;
     } catch { return null; }
   }
@@ -317,7 +315,9 @@ class Akun {
       const ent = await this.client.getEntity(internal);
       this._sourceCache.set(key, ent);
       return ent;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   async _sendEntities(targetPeer, text, rawEntities, tag) {
@@ -355,25 +355,23 @@ class Akun {
     throw new Error('ALL_MODES_FAILED');
   }
 
-  /**
-   * Kirim pesan broadcast:
-   * - PRIORITAS forward: jika msg.src dan msg.mid ada, SELALU coba forward dulu.
-   * - Fallback copy hanya jika forward gagal; gunakan msg.text+entities bila tersedia.
-   * - Pesan non-forward tetap sesuai jenisnya (html/text/string).
-   */
+  // PERBAIKAN UTAMA: prioritas forward dulu; fallback copy hanya jika forward gagal.
   async forwardOrCopy(msg, targetPeer, botApi, tag) {
-    // 1) Forward dari sumber jika tersedia (PRIORITAS UTAMA)
+    // 1) Forward (prioritas) jika tersedia src+mid
     if (msg && typeof msg === 'object' && msg.mid !== undefined && msg.src !== undefined) {
       try {
-        const srcEnt = await this.getSourceEntity(msg.src);
-        if (!srcEnt) throw new Error('SOURCE_NOT_JOINED');
+        let srcEnt = await this.getSourceEntity(msg.src);
+        // fallback: coba by username sumber jika ada
+        if (!srcEnt && msg.src_username) {
+          try { srcEnt = await this.client.getEntity(msg.src_username); } catch {}
+        }
+        if (!srcEnt) throw new Error('SOURCE_NOT_RESOLVED');
         const midNum = Number(msg.mid);
         await this.client.forwardMessages(targetPeer, { fromPeer: srcEnt, messages: [midNum] });
         this.stats.sent++;
         return;
       } catch (e) {
         log(`[FORWARD_FAIL] ${e.message} -> fallback copy`);
-        // Fallback ke konten teks bila ada; jika tidak, gunakan placeholder
         const fbText = (msg && typeof msg.text === 'string') ? msg.text : '[Forward]';
         const fbEntities = Array.isArray(msg?.entities) ? msg.entities : [];
         try {
@@ -387,7 +385,7 @@ class Akun {
       }
     }
 
-    // 2) HTML direct mode
+    // 2) HTML direct
     if (msg && typeof msg === 'object' && msg.html && typeof msg.text === 'string') {
       try {
         await this.client.sendMessage(targetPeer, { message: msg.text, parseMode: 'html' });
@@ -412,7 +410,7 @@ class Akun {
       return;
     }
 
-    // 5) Legacy fallback
+    // 5) Legacy
     try{
       await this.client.sendMessage(targetPeer,{message:msg?.preview||'[Pesan]'});
       this.stats.sent++;
@@ -428,41 +426,27 @@ class Akun {
     return false;
   }
 
-  /**
-   * START BROADCAST (dengan dukungan manual override).
-   * @param {*} botApi
-   * @param {{manual?:boolean}} options
-   * @returns {{ok:boolean,reason?:string}}
-   */
   async start(botApi, options = {}) {
     const manual = !!options.manual;
-
-    // Already running?
     if (this.running) {
       this._log('start(): already running');
       return { ok: false, reason: 'already_running' };
     }
-
-    // Manual override: batalkan timer terjadwal jika ada.
     if (manual && this._startTimer) {
       clearTimeout(this._startTimer);
       this._startTimer = null;
       this._log('start(): manual override cleared _startTimer');
     }
-
-    // Jika bukan manual dan masih ada _startTimer aktif -> tolak.
     if (!manual && this._startTimer) {
       this._log('start(): scheduled pending (not manual)');
       return { ok: false, reason: 'scheduled_pending' };
     }
-
     if (!this.msgs.length) return { ok:false, reason:'no_messages' };
     if (!this.targets.size && !this.all) return { ok:false, reason:'no_targets' };
 
     const okEnsure = await this.ensureClient();
     if (!okEnsure) return { ok:false, reason:'client_not_connected' };
 
-    // Abaikan startTime bila manual
     if (!manual && this.startTime) {
       const ts = this._timeToTimestamp(this.startTime);
       if (ts && ts > Date.now() + 1500) {
@@ -476,12 +460,10 @@ class Akun {
       }
     }
 
-    // Langsung mulai
     this._doStart(botApi, { resume:false, manual });
     return { ok:true };
   }
 
-  // INTERNAL DO START
   _doStart(botApi, { resume=false, manual=false } = {}) {
     if (this.running) return;
     this.running = true;
@@ -513,9 +495,6 @@ class Akun {
     }
   }
 
-  /**
-   * Resume loop dari state (tanpa reset idx/msgIdx).
-   */
   resume(botApi) {
     if (this.running) return { ok:false, reason:'already_running' };
     if (!this.msgs.length || (!this.targets.size && !this.all))
