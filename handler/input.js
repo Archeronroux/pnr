@@ -11,7 +11,6 @@ const TIME_REGEX = /^([01]?\d|2[0-3]):([0-5]\d)$/;
 const DEBUG = process.env.DEBUG_BROADCAST === '1';
 function dbg(...a){ if (DEBUG) console.log('[ADDMSG]', ...a); }
 
-// safe stringify replacer to avoid crash on BigInt
 function safeStringify(obj) {
   const seen = new WeakSet();
   return JSON.stringify(obj, function replacer(k, v) {
@@ -24,7 +23,6 @@ function safeStringify(obj) {
   }, 2);
 }
 
-// write debug file for a specific user
 function writeDebugDump(uid, label, data) {
   try {
     if (!sessionsDir) return;
@@ -37,20 +35,11 @@ function writeDebugDump(uid, label, data) {
   }
 }
 
-/**
- * Normalisasi nomor telepon:
- * - Hapus spasi / tanda kurung / dash
- * - Jika mulai dengan 0 -> konversi ke +62 (Indonesia)
- * - Pastikan punya leading + dan 8-15 digit
- */
 function normalizePhone(raw) {
   if (!raw) return '';
   let s = String(raw).trim();
-  // hapus semua karakter kecuali digit dan plus
   s = s.replace(/[^\d+]/g, '');
-  if (/^0\d+/.test(s)) {
-    s = '+62' + s.slice(1);
-  }
+  if (/^0\d+/.test(s)) s = '+62' + s.slice(1);
   return s;
 }
 
@@ -75,20 +64,14 @@ module.exports = async (ctx) => {
       if (!/^\+\d{8,15}$/.test(phone)) {
         return ctx.reply(STR.messages.invalidPhone + '\nContoh: +6281234567890 (atau 081234567890 -> +6281234567890)');
       }
-
       const acc = u.accounts.get(ctx.session.id);
       if (!acc) {
         console.error('[INPUT] session phone but acc not found', { uid: ctx.from.id, session: ctx.session });
         ctx.session = null;
         return ctx.reply('❌ Sesi login tidak ditemukan, ulangi "Buat Userbot".');
       }
-
       u.active = ctx.session.id;
-
-      try {
-        acc.login(ctx, phone);
-        // Tidak kirim OTP info extra
-      } catch (e) {
+      try { acc.login(ctx, phone); } catch (e) {
         console.error('[input] acc.login error:', e && e.stack ? e.stack : e);
         await ctx.reply('❌ Gagal memulai login: ' + (e.message || String(e)));
         ctx.session = null;
@@ -98,14 +81,7 @@ module.exports = async (ctx) => {
     addmsg: async () => {
       if (!a) return;
       const m = ctx.message;
-
-      // --- DEBUG: dump raw message to file so we can inspect Premium-specific fields ---
-      try {
-        writeDebugDump(ctx.from.id, 'addmsg', m);
-      } catch (e) {
-        console.error('[addmsg debug dump error]', e);
-      }
-      // -----------------------------------------------------------------------------------
+      try { writeDebugDump(ctx.from.id, 'addmsg', m); } catch(e){ console.error(e); }
 
       try {
         const raw = (typeof m.text === 'string' ? m.text : (typeof m.caption === 'string' ? m.caption : '') );
@@ -119,8 +95,9 @@ module.exports = async (ctx) => {
         if (forwardMid !== undefined && forwardMid !== null && (forwardFromChat || forwardFromUser)) {
           const srcId = forwardFromChat ? forwardFromChat.id : (forwardFromUser ? forwardFromUser.id : null);
           if (srcId !== null && srcId !== undefined) {
-            // Simpan forward dengan cadangan konten untuk fallback jika forward gagal
-            a.msgs.push({ src: String(srcId), mid: String(forwardMid), text: raw, entities });
+            const srcUsername = forwardFromChat?.username || forwardFromUser?.username || null;
+            // simpan forward: src, mid, serta cadangan konten + username sumber
+            a.msgs.push({ src: String(srcId), src_username: srcUsername, mid: String(forwardMid), text: raw, entities });
             await ctx.reply(STR.messages.messageForwardSaved);
           } else {
             a.msgs.push({ text: raw, entities });
@@ -142,25 +119,17 @@ module.exports = async (ctx) => {
       await ctx.reply(menu.text, {
         reply_markup: menu.reply_markup,
         parse_mode: menu.parse_mode,
-        message_effect_id: '5104841245755180586' // efek api saat kembali ke menu utama
+        message_effect_id: '5104841245755180586'
       });
     },
 
     addtgt: async () => {
       if (!a) return;
       const m = ctx.message;
-
-      // --- DEBUG: dump message when trying to add targets ---
-      try {
-        writeDebugDump(ctx.from.id, 'addtgt', m);
-      } catch (e) {
-        console.error('[addtgt debug dump error]', e);
-      }
-
+      try { writeDebugDump(ctx.from.id, 'addtgt', m); } catch(e){ console.error(e); }
       try {
         const result = await a.addTargets(text);
         saveState(users);
-
         let msg = `📍 *Ringkasan Penambahan Target:*\n`;
         msg += `• Berhasil ditambah: *${result.added}*\n`;
         msg += `• Duplikat: ${result.duplicates.length}\n`;
@@ -179,7 +148,6 @@ module.exports = async (ctx) => {
           const maxWait = Math.max(...result.flood_wait.map(f=>f.seconds));
           msg += `\nTunggu ± ${maxWait}s sebelum verifikasi ulang.`;
         }
-
         await ctx.reply(msg, { parse_mode: 'Markdown' });
       } catch (e) {
         console.error('[addtgt] exception:', e && e.stack ? e.stack : e);
@@ -229,13 +197,12 @@ module.exports = async (ctx) => {
     input_token: async () => {
       try {
         const data = parseToken(text);
-        for (const m of data.msgs || []) {
+        for (const m of (data.msgs || [])) {
           if (typeof m === 'string') a.msgs.push({ text: m, entities: [] });
           else if (m && typeof m === 'object') {
             if (m.html) a.msgs.push({ text: m.text, entities: [], html: true });
             else if (m.src !== undefined && m.mid !== undefined) {
-              // preserve forward + fallback content jika ada
-              a.msgs.push({ src: String(m.src), mid: String(m.mid), text: m.text, entities: Array.isArray(m.entities)?m.entities:[] });
+              a.msgs.push({ src: String(m.src), src_username: m.src_username || null, mid: String(m.mid), text: m.text, entities: Array.isArray(m.entities)?m.entities:[] });
             } else if (typeof m.text === 'string')
               a.msgs.push({ text: m.text, entities: Array.isArray(m.entities)?m.entities:[] });
           }
@@ -245,10 +212,7 @@ module.exports = async (ctx) => {
         for (const t of data.targets || []) {
           const idStr=String(t.id);
           if (!a.targets.has(idStr)) {
-            a.targets.set(idStr,{
-              id:t.id, title:t.title||idStr, type:t.type||null,
-              access_hash:t.access_hash||null, entity:null
-            });
+            a.targets.set(idStr,{ id:t.id, title:t.title||idStr, type:t.type||null, access_hash:t.access_hash||null, entity:null });
             addedT++;
           } else dupT++;
         }
@@ -270,9 +234,7 @@ module.exports = async (ctx) => {
         msg += `\n${STR.messages.summaryFailHeader}\n`;
         if (ver.flood_wait) msg += STR.messages.summaryLimit(1)+'\n';
         if (ver.failed.length) msg += STR.messages.summaryJoinFail(ver.failed.length)+'\n';
-
-        if (ver.flood_wait) msg += `\nTekan ${STR.menu.verifyTarget} setelah menunggu.`; 
-
+        if (ver.flood_wait) msg += `\nTekan ${STR.menu.verifyTarget} setelah menunggu.`;
         await ctx.reply(msg, { parse_mode: 'Markdown' });
       } catch (e) {
         await ctx.reply(STR.errors.importFailed(e.message || e));
