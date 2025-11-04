@@ -94,10 +94,10 @@ class Akun {
       if (!this._profileFetched) {
         try {
           const me = await this.client.getMe();
-            this.isPremium = !!me?.premium;
-            this.name = this.name || me?.firstName || me?.username || 'User';
-            this._profileFetched = true;
-            log(`[PROFILE] uid=${this.uid} premium=${this.isPremium}`);
+          this.isPremium = !!me?.premium;
+          this.name = this.name || me?.firstName || me?.username || 'User';
+          this._profileFetched = true;
+          log(`[PROFILE] uid=${this.uid} premium=${this.isPremium}`);
         } catch {}
       }
       return true;
@@ -120,8 +120,8 @@ class Akun {
     if (multi) return multi.split(',').map(s => s.trim()).filter(Boolean);
     if (single) return [single];
     return [
-      '5104841245755180586',
-      '5046509860389126442',
+      '5104841245755180586', // api
+      '5046509860389126442', // api alt
       '5044134455711629726',
       '5064383411453188150'
     ];
@@ -302,19 +302,20 @@ class Akun {
       const n = BigInt(botId);
       if (n >= 0n) return n;
       const abs = -n;
-      if (String(abs).startsWith('100')) return abs - 1000000000000n;
+      if (String(abs).startsWith('100')) return abs - 1000000000000n; // -100xxxxxxxxxx -> xxxxxxxxxx
       return abs;
     } catch { return null; }
   }
 
   async getSourceEntity(botApiChatId) {
     if (!(await this.ensureClient())) return null;
-    if (this._sourceCache.has(botApiChatId)) return this._sourceCache.get(botApiChatId);
+    const key = String(botApiChatId);
+    if (this._sourceCache.has(key)) return this._sourceCache.get(key);
     const internal = this.botToInternal(botApiChatId);
     if (!internal) return null;
     try {
       const ent = await this.client.getEntity(internal);
-      this._sourceCache.set(botApiChatId, ent);
+      this._sourceCache.set(key, ent);
       return ent;
     } catch { return null; }
   }
@@ -354,8 +355,39 @@ class Akun {
     throw new Error('ALL_MODES_FAILED');
   }
 
+  /**
+   * Kirim pesan broadcast:
+   * - PRIORITAS forward: jika msg.src dan msg.mid ada, SELALU coba forward dulu.
+   * - Fallback copy hanya jika forward gagal; gunakan msg.text+entities bila tersedia.
+   * - Pesan non-forward tetap sesuai jenisnya (html/text/string).
+   */
   async forwardOrCopy(msg, targetPeer, botApi, tag) {
-    // HTML direct mode
+    // 1) Forward dari sumber jika tersedia (PRIORITAS UTAMA)
+    if (msg && typeof msg === 'object' && msg.mid !== undefined && msg.src !== undefined) {
+      try {
+        const srcEnt = await this.getSourceEntity(msg.src);
+        if (!srcEnt) throw new Error('SOURCE_NOT_JOINED');
+        const midNum = Number(msg.mid);
+        await this.client.forwardMessages(targetPeer, { fromPeer: srcEnt, messages: [midNum] });
+        this.stats.sent++;
+        return;
+      } catch (e) {
+        log(`[FORWARD_FAIL] ${e.message} -> fallback copy`);
+        // Fallback ke konten teks bila ada; jika tidak, gunakan placeholder
+        const fbText = (msg && typeof msg.text === 'string') ? msg.text : '[Forward]';
+        const fbEntities = Array.isArray(msg?.entities) ? msg.entities : [];
+        try {
+          await this._sendEntities(targetPeer, fbText, fbEntities, tag + '_FALLBACK');
+          this.stats.sent++;
+          return;
+        } catch (e2) {
+          this.stats.failed++; log(`[FORWARD_FALLBACK_FAIL] ${e2.message}`);
+          return;
+        }
+      }
+    }
+
+    // 2) HTML direct mode
     if (msg && typeof msg === 'object' && msg.html && typeof msg.text === 'string') {
       try {
         await this.client.sendMessage(targetPeer, { message: msg.text, parseMode: 'html' });
@@ -365,39 +397,22 @@ class Akun {
       }
       return;
     }
-    // Text + entities
+
+    // 3) Text + entities
     if (msg && typeof msg === 'object' && typeof msg.text === 'string') {
       try { await this._sendEntities(targetPeer, msg.text, Array.isArray(msg.entities)?msg.entities:[], tag); this.stats.sent++; }
       catch(e){ this.stats.failed++; log(`[FATAL_SEND] tag=${tag} e=${e.message}`); }
       return;
     }
-    // Plain string
+
+    // 4) Plain string
     if (typeof msg === 'string') {
       try { await this.client.sendMessage(targetPeer,{message:msg}); this.stats.sent++; }
       catch(e){ this.stats.failed++; log(`[PLAIN_FAIL] ${e.message}`); }
       return;
     }
-    // Forward from source (src+mid)
-    if (msg && typeof msg === 'object' && msg.mid !== undefined && msg.src !== undefined){
-      try{
-        const srcEnt=await this.getSourceEntity(msg.src);
-        if(!srcEnt) throw new Error('SOURCE_NOT_JOINED');
-        const midNum = Number(msg.mid);
-        await this.client.forwardMessages(targetPeer,{fromPeer:srcEnt,messages:[midNum]});
-        this.stats.sent++;
-      }catch(e){
-        log(`[FORWARD_FAIL] ${e.message} -> fallback copy`);
-        try{
-          const text = typeof msg.text === 'string' ? msg.text : '[Forward]';
-          await this._sendEntities(targetPeer, text, Array.isArray(msg.entities)?msg.entities:[], tag+'_FALLBACK');
-          this.stats.sent++;
-        }catch(e2){
-          this.stats.failed++; log(`[FORWARD_FALLBACK_FAIL] ${e2.message}`);
-        }
-      }
-      return;
-    }
-    // Legacy fallback
+
+    // 5) Legacy fallback
     try{
       await this.client.sendMessage(targetPeer,{message:msg?.preview||'[Pesan]'});
       this.stats.sent++;
@@ -703,7 +718,7 @@ class Akun {
         if(ent.className==='Channel' && ent.accessHash){ type='channel'; access_hash=String(ent.accessHash); }
         else if(ent.className==='Chat'){ type='chat'; }
 
-        this.targets.set(idStr,{ id:ent.id, title:ent.title||ent.firstName||ent.username||idStr, type, access_hash, entity:ent });
+        this.targets.set(String(idStr),{ id:ent.id, title:ent.title||ent.firstName||ent.username||idStr, type, access_hash, entity:ent });
         added++;
       }catch(e){
         errors.push(`${raw} (${e.message})`);
