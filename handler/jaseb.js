@@ -33,7 +33,7 @@ function buildStatsText(ctx, a) {
 📮 *Pesan Gagal*     : ${gagal}
 📚 *Pesan Berhasil*  : ${sukses}
 
-_ada pertanyaan? bisa tanya @JaeHype_`;
+_ada pertanyaan? bisa tanya @Stuaart_`;
 }
 
 module.exports = (bot) => {
@@ -75,7 +75,7 @@ module.exports = (bot) => {
     const a = getAcc(ctx.from.id);
     if (!a) return ctx.reply(STR.messages.needLogin);
     await ctx.reply(
-      `Silakan pilih menu *Jeda*, *Timer Mulai*, atau *Timer Stop*.\n⚠️ Tips: Pakai jeda panjang biar aman.\n\n_Butuh bantuan?_ 👉 @JaeHype`,
+      `Silakan pilih menu *Jeda*, *Timer Mulai*, atau *Timer Stop*.\n⚠️ Tips: Pakai jeda panjang biar aman.\n\n_Butuh bantuan?_ 👉 @Stuaart`,
       { parse_mode: 'Markdown', reply_markup: settingMenu(a) }
     );
   });
