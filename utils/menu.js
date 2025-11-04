@@ -74,11 +74,11 @@ const startCommand = async (ctx) => {
     return;
   }
   const m = mainMenu(ctx);
-  // Tambahkan efek animasi emoji api pada pesan utama (tombol Kembali)
+  // Gunakan efek api setiap kali pesan utama ditampilkan
   await ctx.reply(m.text, {
     reply_markup: m.reply_markup,
     parse_mode: m.parse_mode,
-    message_effect_id: '5046509860389126442' // fire effect
+    message_effect_id: '5104841245755180586' // efek api
   });
 };
 
