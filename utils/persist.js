@@ -23,19 +23,15 @@ function slimEntities(entities) {
     const base = { type: e.type, offset: e.offset, length: e.length };
     if (e.url) base.url = e.url;
     if (e.language) base.language = e.language;
-    // Pastikan custom_emoji_id disimpan sebagai string (JSON tidak support BigInt)
     if (e.custom_emoji_id !== undefined && e.custom_emoji_id !== null) base.custom_emoji_id = String(e.custom_emoji_id);
     if (e.user && e.user.id) base.user = { id: e.user.id };
     return base;
   });
 }
 
-// Safe stringify: konversi BigInt => string agar JSON.stringify tidak throw.
-// Juga men-convert Buffer/Uint8Array ke string jika ada (safety).
 function safeStringify(obj, spaces = 2) {
   const seen = new WeakSet();
   return JSON.stringify(obj, function replacer(key, value) {
-    // Avoid circular
     if (value && typeof value === 'object') {
       if (seen.has(value)) return;
       seen.add(value);
@@ -62,10 +58,10 @@ function saveState(usersMap) {
           startTime: acc.startTime,
           stopTime: acc.stopTime,
           running: !!acc.running,
-            idx: acc.idx || 0,
-            msgIdx: acc.msgIdx || 0,
-            lastBetweenTick: acc.lastBetweenTick || 0,
-            lastAllTick: acc.lastAllTick || 0,
+          idx: acc.idx || 0,
+          msgIdx: acc.msgIdx || 0,
+          lastBetweenTick: acc.lastBetweenTick || 0,
+          lastAllTick: acc.lastAllTick || 0,
           stats: acc.stats || { sent:0, failed:0, skip:0, start:0 },
           msgs: Array.isArray(acc.msgs)
             ? acc.msgs.map(m => {
@@ -73,8 +69,8 @@ function saveState(usersMap) {
                 if (m && typeof m === 'object') {
                   if (m.src !== undefined && m.mid !== undefined) {
                     return {
-                      // pastikan src/mid disimpan sebagai string agar JSON valid
                       src: String(m.src),
+                      src_username: m.src_username || null,
                       mid: String(m.mid),
                       text: typeof m.text === 'string' ? m.text : (typeof m.preview === 'string' ? m.preview : undefined),
                       entities: slimEntities(m.entities)
@@ -92,7 +88,6 @@ function saveState(usersMap) {
                 id: String(t.id),
                 title: t.title || String(t.id),
                 type: t.type || null,
-                // pastikan access_hash disimpan sebagai string atau null
                 access_hash: t.access_hash != null ? String(t.access_hash) : null
               }))
             : []
@@ -101,9 +96,7 @@ function saveState(usersMap) {
       }
       out.users[String(uid)] = rec;
     }
-
     const tmp = statePath + '.tmp';
-    // Gunakan safeStringify sehingga BigInt (atau buffer) tidak menyebabkan error.
     const txt = safeStringify(out, 2);
     fs.writeFileSync(tmp, txt, 'utf8');
     fs.renameSync(tmp, statePath);
