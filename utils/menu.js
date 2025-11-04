@@ -59,7 +59,6 @@ const startCommand = async (ctx) => {
       }
     }
   } catch (e) {
-    // jangan ganggu flow utama kalau ada error kecil di cleanup
     console.error('[startCommand] cleanup pending acc error:', e && e.stack ? e.stack : e);
   }
 
@@ -75,7 +74,12 @@ const startCommand = async (ctx) => {
     return;
   }
   const m = mainMenu(ctx);
-  await ctx.reply(m.text, { reply_markup: m.reply_markup, parse_mode: m.parse_mode });
+  // Tambahkan efek animasi emoji api pada pesan utama (tombol Kembali)
+  await ctx.reply(m.text, {
+    reply_markup: m.reply_markup,
+    parse_mode: m.parse_mode,
+    message_effect_id: '5046509860389126442' // fire effect
+  });
 };
 
 const helpCommand = async (ctx) => {
@@ -92,7 +96,7 @@ Langkah cepat:
 *⚠️ Gunakan sebaik-baiknya. Masih ada kekurangan.*
 Terima kasih atas pengertiannya!
 
-Kontak: @JaeHype
+Kontak: @Stuaart
 Channel Update: @PanoramaaStore`;
   await ctx.reply(text, {
     parse_mode: 'Markdown',
