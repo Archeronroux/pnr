@@ -27,7 +27,6 @@ process.on('uncaughtException', (err) => console.error('[UNCAUGHT_EXCEPTION]', e
 
 bot.use(session({ initial: () => ({}) }));
 
-// Pulihkan sesi
 (function restoreSessions() {
   const state = loadState();
   for (const uidStr of Object.keys(state.users || {})) {
@@ -53,6 +52,7 @@ bot.use(session({ initial: () => ({}) }));
           if (m && typeof m === 'object') {
             return {
               src: m.src,
+              src_username: m.src_username || null,
               mid: m.mid,
               text: typeof m.text === 'string' ? m.text : undefined,
               preview: typeof m.preview === 'string' ? m.preview : undefined,
@@ -83,7 +83,6 @@ bot.use(session({ initial: () => ({}) }));
       acc.running = !!aData.running;
       acc.lastBetweenTick = aData.lastBetweenTick || 0;
       acc.lastAllTick = aData.lastAllTick || 0;
-      // Stop broadcast aktif (tanpa hapus data)
       if (acc.running) {
         try { acc.stop(true); } catch {}
         acc.running = false;
@@ -91,14 +90,10 @@ bot.use(session({ initial: () => ({}) }));
       u.accounts.set(accId, acc);
     }
   }
-
-  // DIHAPUS: Jangan kirim pesan perubahan akses saat restart
 })();
 
-// Gate entitlement
 bot.use(entitlementGate());
 
-// Handlers
 authHandler(bot);
 pesanHandler(bot);
 targetHandler(bot);
