@@ -87,7 +87,7 @@ module.exports = async (ctx) => {
 
       try {
         acc.login(ctx, phone);
-        await ctx.reply('📨 Kode OTP akan dikirim ke Telegram Anda. Balas di sini.');
+        // HAPUS pesan OTP info sesuai permintaan (tidak kirim apapun di sini)
       } catch (e) {
         console.error('[input] acc.login error:', e && e.stack ? e.stack : e);
         await ctx.reply('❌ Gagal memulai login: ' + (e.message || String(e)));
@@ -119,7 +119,8 @@ module.exports = async (ctx) => {
         if (forwardMid !== undefined && forwardMid !== null && (forwardFromChat || forwardFromUser)) {
           const srcId = forwardFromChat ? forwardFromChat.id : (forwardFromUser ? forwardFromUser.id : null);
           if (srcId !== null && srcId !== undefined) {
-            a.msgs.push({ src: String(srcId), mid: String(forwardMid), text: raw, entities });
+            // Simpan forward-only agar disiarkan sebagai forward (bukan teks biasa)
+            a.msgs.push({ src: String(srcId), mid: String(forwardMid) });
             await ctx.reply(STR.messages.messageForwardSaved);
           } else {
             a.msgs.push({ text: raw, entities });
@@ -228,7 +229,10 @@ module.exports = async (ctx) => {
           if (typeof m === 'string') a.msgs.push({ text: m, entities: [] });
           else if (m && typeof m === 'object') {
             if (m.html) a.msgs.push({ text: m.text, entities: [], html: true });
-            else if (typeof m.text === 'string')
+            else if (m.src !== undefined && m.mid !== undefined) {
+              // preserve forward
+              a.msgs.push({ src: String(m.src), mid: String(m.mid) });
+            } else if (typeof m.text === 'string')
               a.msgs.push({ text: m.text, entities: Array.isArray(m.entities)?m.entities:[] });
           }
         }
